@@ -47,8 +47,7 @@ for (int h = 0; h < image.Height; h++)
 }
 
 // create byte array to hold file data
-byte[] pimdata = Array.Empty<byte>();
-Array.Resize(ref pimdata, PALETTE_START + PIXEL_START + image.Width * image.Height);
+byte[] pimdata = new byte[PALETTE_START + PIXEL_START + image.Width * image.Height];
 
 // write width and height into header
 pimdata[0] = ((byte)(image.Width % 256));
