@@ -96,10 +96,7 @@ for (int h = 0; h < image.Height; h++)
 }
 
 // get output file name
-string newfilename = string.Empty;
-for (int i = 0; i < imgfile.Length - 4; i++)
-    newfilename += imgfile[i];
-newfilename += ".PIM";
+string newfilename = imgfile.Remove(imgfile.Length - 4) + ".PIM";
 
 // create new pim file
 File.WriteAllBytes(newfilename, pimdata);
