@@ -4,6 +4,7 @@ using System.Drawing;
 const int PALETTE_START = 0x10;
 const int PIXEL_START = 0x400;
 
+// get file to convert
 Console.Write("Input the name of an image file (including extension): ");
 string imgfile = Console.ReadLine();
 
@@ -62,6 +63,7 @@ pimdata[8] = 0x10;
 pimdata[12] = 0x10;
 pimdata[13] = 0x04;
 
+// write color palette data
 for (int i = 0; i < palette.Length; i++)
 {
     byte red = palette[i].R;
@@ -75,6 +77,7 @@ for (int i = 0; i < palette.Length; i++)
     pimdata[(i * 4 + 3) + PALETTE_START] = alpha;
 }
 
+// find the color for each pixel and write the index
 for (int h = 0; h < image.Height; h++)
 {
     for (int w = 0; w < image.Width; w++)
@@ -92,11 +95,13 @@ for (int h = 0; h < image.Height; h++)
     }
 }
 
+// get output file name
 string newfilename = string.Empty;
 for (int i = 0; i < imgfile.Length - 4; i++)
     newfilename += imgfile[i];
 newfilename += ".PIM";
 
+// create new pim file
 File.WriteAllBytes(newfilename, pimdata);
 if (File.Exists(newfilename))
     Console.WriteLine("New PIM File saved as " + newfilename);
