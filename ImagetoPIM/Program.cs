@@ -11,7 +11,7 @@ string imgfile = Console.ReadLine();
 // check if file exists
 if (!File.Exists(imgfile))
 {
-    Console.WriteLine("Invalid Filename");
+    Console.WriteLine("Invalid Filename\nExiting Execution");
     return;
 }
 
@@ -101,3 +101,5 @@ string newfilename = imgfile.Remove(imgfile.Length - 4) + ".PIM";
 File.WriteAllBytes(newfilename, pimdata);
 if (File.Exists(newfilename))
     Console.WriteLine("New PIM File saved as " + newfilename);
+else
+    Console.WriteLine("Could not create file\nExiting Execution");
