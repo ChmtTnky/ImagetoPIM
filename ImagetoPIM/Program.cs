@@ -16,7 +16,7 @@ namespace ImagetoPIM
             {
                 if (File.Exists(args[0]))
                 {
-                    converter.imgfile = args[0];
+                    converter.image_file = args[0];
                     while (!converter.GetBitDepthFromConsole()) ;
                     converter.WritePIMFile();
                 }
@@ -33,7 +33,7 @@ namespace ImagetoPIM
                     {
                         return;
                     }
-                    converter.imgfile = args[0];
+                    converter.image_file = args[0];
                     converter.WritePIMFile();
                 }
             }

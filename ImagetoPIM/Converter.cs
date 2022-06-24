@@ -7,17 +7,17 @@ namespace ImagetoPIM
     {
         const int HEADER_LENGTH = 0x10;
 
-        public string imgfile;
+        public string image_file;
         public int bit_depth;
 
         public bool GetFileNameFromConsole()
         {
             // get file to convert
             Console.Write("Input the name of an image file (including extension): ");
-            imgfile = Console.ReadLine();
+            image_file = Console.ReadLine();
 
             // check if file exists
-            if (!File.Exists(imgfile))
+            if (!File.Exists(image_file))
             {
                 Console.WriteLine("Invalid Filename\nExiting Execution");
                 return false;
@@ -52,7 +52,7 @@ namespace ImagetoPIM
         {
             // based on the bit depth, write the pim file
             // note: pim files use RGBA order, rather than ARGB
-            // note: pim alpha values end at 0x80, not 0xFF, so they are all normaized before writing
+            // note: pim alpha values end at 0x80, not 0xFF, so they are all normalized before writing
             switch (bit_depth)
             {
                 case 4:
@@ -61,7 +61,7 @@ namespace ImagetoPIM
                         const int PALETTE_LENGTH = 0x40;
 
                         // make and quantize image file
-                        Bitmap image = new Bitmap(imgfile);
+                        Bitmap image = new Bitmap(image_file);
                         image = MedianCut.Quantize(image, 16);
 
                         // get byte array
@@ -70,7 +70,7 @@ namespace ImagetoPIM
                         // each pixel only takes 4 bits, thus half a byte each
                         // the fraction gets contencated, which is why the extra byte has to be added in odd cases
                         // else, the file would be too short to hold every pixel
-                        byte[] pimdata = new byte[HEADER_LENGTH + PALETTE_LENGTH + ((image.Width * image.Height) / 2) + ((image.Width * image.Height) % 2)];
+                        byte[] pim_data = new byte[HEADER_LENGTH + PALETTE_LENGTH + ((image.Width * image.Height) / 2) + ((image.Width * image.Height) % 2)];
 
                         // get every color in the source image
                         // this process is slow and should be replaced first
@@ -81,12 +81,12 @@ namespace ImagetoPIM
                             for (int w = 0; w < image.Width; w++)
                             {
                                 exists = false;
-                                Color pixelcolor = image.GetPixel(w, h);
+                                Color pixel_color = image.GetPixel(w, h);
 
                                 // if the color was already found, move on to the next pixel
                                 for (int k = 0; k < palette.Length; k++)
                                 {
-                                    if (pixelcolor == palette[k])
+                                    if (pixel_color == palette[k])
                                     {
                                         exists = true;
                                         break;
@@ -101,7 +101,7 @@ namespace ImagetoPIM
                                 {
                                     // not all images have 16 colors in them, which is why the array has no set size
                                     Array.Resize(ref palette, palette.Length + 1);
-                                    palette[palette.Length - 1] = pixelcolor;
+                                    palette[palette.Length - 1] = pixel_color;
                                     // for some reason the quantization wont reduce the image to 16 colors in all cases
                                     // so, the function has to end early if it doesn't
                                     if (palette.Length >= 16)
@@ -113,16 +113,16 @@ namespace ImagetoPIM
                         }
 
                         // write width and height into header
-                        pimdata[0] = ((byte)(image.Width % 256));
-                        pimdata[1] = ((byte)(image.Width >> 8));
-                        pimdata[2] = ((byte)(image.Height % 256));
-                        pimdata[3] = ((byte)(image.Height >> 8));
+                        pim_data[0] = ((byte)(image.Width % 256));
+                        pim_data[1] = ((byte)(image.Width >> 8));
+                        pim_data[2] = ((byte)(image.Height % 256));
+                        pim_data[3] = ((byte)(image.Height >> 8));
 
                         // write rest of header values
-                        pimdata[4] = 0x04;
-                        pimdata[6] = 0x10;
-                        pimdata[8] = 0x10;
-                        pimdata[12] = 0x50;
+                        pim_data[4] = 0x04;
+                        pim_data[6] = 0x10;
+                        pim_data[8] = 0x10;
+                        pim_data[12] = 0x50;
 
                         byte red;
                         byte green;
@@ -138,10 +138,10 @@ namespace ImagetoPIM
                             // normalize alpha
                             alpha = (byte)((palette[i].A + 1) / 2);
 
-                            pimdata[(i * 4) + HEADER_LENGTH] = red;
-                            pimdata[(i * 4 + 1) + HEADER_LENGTH] = green;
-                            pimdata[(i * 4 + 2) + HEADER_LENGTH] = blue;
-                            pimdata[(i * 4 + 3) + HEADER_LENGTH] = alpha;
+                            pim_data[(i * 4) + HEADER_LENGTH] = red;
+                            pim_data[(i * 4 + 1) + HEADER_LENGTH] = green;
+                            pim_data[(i * 4 + 2) + HEADER_LENGTH] = blue;
+                            pim_data[(i * 4 + 3) + HEADER_LENGTH] = alpha;
                         }
 
                         // find the color index of each pixel and write it in
@@ -151,13 +151,13 @@ namespace ImagetoPIM
                         {
                             for (int w = 0; w < image.Width; w++)
                             {
-                                Color pixelcolor = image.GetPixel(w, h);
+                                Color pixel_color = image.GetPixel(w, h);
                                 index = 0;
 
                                 // iterate through the palette and find the color
                                 for (int i = 0; i < palette.Length; i++)
                                 {
-                                    if (pixelcolor == palette[i])
+                                    if (pixel_color == palette[i])
                                     {
                                         index = i;
                                         break;
@@ -169,22 +169,22 @@ namespace ImagetoPIM
                                 // this is cause 4 bit pim files suck and have a wonky order
                                 if (((h * image.Width) + w) % 2 == 0)
                                 {
-                                    pimdata[PALETTE_LENGTH + HEADER_LENGTH + byte_count] += (byte)index;
+                                    pim_data[PALETTE_LENGTH + HEADER_LENGTH + byte_count] += (byte)index;
                                 }
                                 else
                                 {
-                                    pimdata[PALETTE_LENGTH + HEADER_LENGTH + byte_count] += (byte)(index * 16);
+                                    pim_data[PALETTE_LENGTH + HEADER_LENGTH + byte_count] += (byte)(index * 16);
                                     byte_count++;
                                 }
                             }
                         }
 
                         // get output file name
-                        string newfilename = imgfile.Remove(imgfile.Length - 4) + ".PIM";
+                        string new_filename = image_file.Remove(image_file.Length - 4) + ".PIM";
 
                         // create new pim file
-                        File.WriteAllBytes(newfilename, pimdata);
-                        if (File.Exists(newfilename))
+                        File.WriteAllBytes(new_filename, pim_data);
+                        if (File.Exists(new_filename))
                         {
                             return true;
                         }
@@ -199,11 +199,11 @@ namespace ImagetoPIM
                         const int PALETTE_LENGTH = 0x400;
 
                         // make and quantize image
-                        Bitmap image = new Bitmap(imgfile);
+                        Bitmap image = new Bitmap(image_file);
                         image = MedianCut.Quantize(image, 256);
 
                         // make byte array, with one byte per pixel
-                        byte[] pimdata = new byte[HEADER_LENGTH + PALETTE_LENGTH + image.Width * image.Height];
+                        byte[] pim_data = new byte[HEADER_LENGTH + PALETTE_LENGTH + image.Width * image.Height];
 
                         // get every color in the source image
                         // very slow, especially for this encoding format
@@ -214,13 +214,13 @@ namespace ImagetoPIM
                             for (int w = 0; w < image.Width; w++)
                             {
                                 exists = false;
-                                Color pixelcolor = image.GetPixel(w, h);
+                                Color pixel_color = image.GetPixel(w, h);
 
                                 // if color is already found, move on to the next pixel
                                 // this is why its slow
                                 for (int k = 0; k < palette.Length; k++)
                                 {
-                                    if (pixelcolor == palette[k])
+                                    if (pixel_color == palette[k])
                                     {
                                         exists = true;
                                         break;
@@ -234,7 +234,7 @@ namespace ImagetoPIM
                                 else
                                 {
                                     Array.Resize(ref palette, palette.Length + 1);
-                                    palette[palette.Length - 1] = pixelcolor;
+                                    palette[palette.Length - 1] = pixel_color;
                                     // i haven't had issues with the quantization, but this is here just in case
                                     if (palette.Length >= 256)
                                         break;
@@ -245,17 +245,17 @@ namespace ImagetoPIM
                         }
 
                         // write width and height into header
-                        pimdata[0] = ((byte)(image.Width % 256));
-                        pimdata[1] = ((byte)(image.Width >> 8));
-                        pimdata[2] = ((byte)(image.Height % 256));
-                        pimdata[3] = ((byte)(image.Height >> 8));
+                        pim_data[0] = ((byte)(image.Width % 256));
+                        pim_data[1] = ((byte)(image.Width >> 8));
+                        pim_data[2] = ((byte)(image.Height % 256));
+                        pim_data[3] = ((byte)(image.Height >> 8));
 
                         // write rest of header values
-                        pimdata[4] = 0x08;
-                        pimdata[7] = 0x01;
-                        pimdata[8] = 0x10;
-                        pimdata[12] = 0x10;
-                        pimdata[13] = 0x04;
+                        pim_data[4] = 0x08;
+                        pim_data[7] = 0x01;
+                        pim_data[8] = 0x10;
+                        pim_data[12] = 0x10;
+                        pim_data[13] = 0x04;
 
                         // write color palette data
                         byte red;
@@ -270,10 +270,10 @@ namespace ImagetoPIM
                             // normalize alpha
                             alpha = (byte)((palette[i].A + 1) / 2);
 
-                            pimdata[(i * 4) + HEADER_LENGTH] = red;
-                            pimdata[(i * 4 + 1) + HEADER_LENGTH] = green;
-                            pimdata[(i * 4 + 2) + HEADER_LENGTH] = blue;
-                            pimdata[(i * 4 + 3) + HEADER_LENGTH] = alpha;
+                            pim_data[(i * 4) + HEADER_LENGTH] = red;
+                            pim_data[(i * 4 + 1) + HEADER_LENGTH] = green;
+                            pim_data[(i * 4 + 2) + HEADER_LENGTH] = blue;
+                            pim_data[(i * 4 + 3) + HEADER_LENGTH] = alpha;
                         }
 
                         // find the color for each pixel and write the index
@@ -282,29 +282,29 @@ namespace ImagetoPIM
                         {
                             for (int w = 0; w < image.Width; w++)
                             {
-                                Color pixelcolor = image.GetPixel(w, h);
+                                Color pixel_color = image.GetPixel(w, h);
                                 index = 0;
 
                                 // find the color of the pixel then write it in
                                 for (int i = 0; i < palette.Length; i++)
                                 {
-                                    if (pixelcolor == palette[i])
+                                    if (pixel_color == palette[i])
                                     {
                                         index = i;
                                         break;
                                     }
                                 }
 
-                                pimdata[PALETTE_LENGTH + HEADER_LENGTH + (h * image.Width) + w] = (byte)index;
+                                pim_data[PALETTE_LENGTH + HEADER_LENGTH + (h * image.Width) + w] = (byte)index;
                             }
                         }
 
                         // get output file name
-                        string newfilename = imgfile.Remove(imgfile.Length - 4) + ".PIM";
+                        string new_filename = image_file.Remove(image_file.Length - 4) + ".PIM";
 
                         // create new pim file
-                        File.WriteAllBytes(newfilename, pimdata);
-                        if (File.Exists(newfilename))
+                        File.WriteAllBytes(new_filename, pim_data);
+                        if (File.Exists(new_filename))
                         {
                             return true;
                         }
@@ -316,20 +316,20 @@ namespace ImagetoPIM
                 case 32:
                     {
                         // does not need to be quantized due to a lack of a palette
-                        Bitmap image = new Bitmap(imgfile);
+                        Bitmap image = new Bitmap(image_file);
 
                         // this format has 4 bytes per pixel
-                        byte[] pimdata = new byte[HEADER_LENGTH + (4 * image.Width * image.Height)];
+                        byte[] pim_data = new byte[HEADER_LENGTH + (4 * image.Width * image.Height)];
 
                         // write width and height into header
-                        pimdata[0] = ((byte)(image.Width % 256));
-                        pimdata[1] = ((byte)(image.Width >> 8));
-                        pimdata[2] = ((byte)(image.Height % 256));
-                        pimdata[3] = ((byte)(image.Height >> 8));
+                        pim_data[0] = ((byte)(image.Width % 256));
+                        pim_data[1] = ((byte)(image.Width >> 8));
+                        pim_data[2] = ((byte)(image.Height % 256));
+                        pim_data[3] = ((byte)(image.Height >> 8));
 
                         // write rest of header values
-                        pimdata[4] = 0x20;
-                        pimdata[12] = 0x10;
+                        pim_data[4] = 0x20;
+                        pim_data[12] = 0x10;
 
                         // for each pixel write the color values in directly
                         for (int h = 0; h < image.Height; h++)
@@ -338,20 +338,20 @@ namespace ImagetoPIM
                             {
                                 Color pixel_color = image.GetPixel(w, h);
 
-                                pimdata[HEADER_LENGTH + (4 * ((h * image.Width) + w))] = pixel_color.R;
-                                pimdata[HEADER_LENGTH + (4 * ((h * image.Width) + w)) + 1] = pixel_color.G;
-                                pimdata[HEADER_LENGTH + (4 * ((h * image.Width) + w)) + 2] = pixel_color.B;
+                                pim_data[HEADER_LENGTH + (4 * ((h * image.Width) + w))] = pixel_color.R;
+                                pim_data[HEADER_LENGTH + (4 * ((h * image.Width) + w)) + 1] = pixel_color.G;
+                                pim_data[HEADER_LENGTH + (4 * ((h * image.Width) + w)) + 2] = pixel_color.B;
                                 // normalize alpha
-                                pimdata[HEADER_LENGTH + (4 * ((h * image.Width) + w)) + 3] = (byte)((pixel_color.A + 1) / 2);
+                                pim_data[HEADER_LENGTH + (4 * ((h * image.Width) + w)) + 3] = (byte)((pixel_color.A + 1) / 2);
                             }
                         }
 
                         // get output file name
-                        string newfilename = imgfile.Remove(imgfile.Length - 4) + ".PIM";
+                        string new_filename = image_file.Remove(image_file.Length - 4) + ".PIM";
 
                         // create new pim file
-                        File.WriteAllBytes(newfilename, pimdata);
-                        if (File.Exists(newfilename))
+                        File.WriteAllBytes(new_filename, pim_data);
+                        if (File.Exists(new_filename))
                         {
                             return true;
                         }
@@ -370,7 +370,7 @@ namespace ImagetoPIM
         {
             // based on the bit depth, write the pim file
             // note: pim files use RGBA order, rather than ARGB
-            // note: pim alpha values end at 0x80, not 0xFF, so they are all normaized before writing
+            // note: pim alpha values end at 0x80, not 0xFF, so they are all normalized before writing
             switch (depth)
             {
                 case 4:
@@ -388,7 +388,7 @@ namespace ImagetoPIM
                         // each pixel only takes 4 bits, thus half a byte each
                         // the fraction gets contencated, which is why the extra byte has to be added in odd cases
                         // else, the file would be too short to hold every pixel
-                        byte[] pimdata = new byte[HEADER_LENGTH + PALETTE_LENGTH + ((image.Width * image.Height) / 2) + ((image.Width * image.Height) % 2)];
+                        byte[] pim_data = new byte[HEADER_LENGTH + PALETTE_LENGTH + ((image.Width * image.Height) / 2) + ((image.Width * image.Height) % 2)];
 
                         // get every color in the source image
                         // this process is slow and should be replaced first
@@ -399,12 +399,12 @@ namespace ImagetoPIM
                             for (int w = 0; w < image.Width; w++)
                             {
                                 exists = false;
-                                Color pixelcolor = image.GetPixel(w, h);
+                                Color pixel_color = image.GetPixel(w, h);
 
                                 // if the color was already found, move on to the next pixel
                                 for (int k = 0; k < palette.Length; k++)
                                 {
-                                    if (pixelcolor == palette[k])
+                                    if (pixel_color == palette[k])
                                     {
                                         exists = true;
                                         break;
@@ -419,7 +419,7 @@ namespace ImagetoPIM
                                 {
                                     // not all images have 16 colors in them, which is why the array has no set size
                                     Array.Resize(ref palette, palette.Length + 1);
-                                    palette[palette.Length - 1] = pixelcolor;
+                                    palette[palette.Length - 1] = pixel_color;
                                     // this is here just in case the quantization doesnt work 100% properly
                                     if (palette.Length >= 16)
                                         break;
@@ -430,16 +430,16 @@ namespace ImagetoPIM
                         }
 
                         // write width and height into header
-                        pimdata[0] = ((byte)(image.Width % 256));
-                        pimdata[1] = ((byte)(image.Width >> 8));
-                        pimdata[2] = ((byte)(image.Height % 256));
-                        pimdata[3] = ((byte)(image.Height >> 8));
+                        pim_data[0] = ((byte)(image.Width % 256));
+                        pim_data[1] = ((byte)(image.Width >> 8));
+                        pim_data[2] = ((byte)(image.Height % 256));
+                        pim_data[3] = ((byte)(image.Height >> 8));
 
                         // write rest of header values
-                        pimdata[4] = 0x04;
-                        pimdata[6] = 0x10;
-                        pimdata[8] = 0x10;
-                        pimdata[12] = 0x50;
+                        pim_data[4] = 0x04;
+                        pim_data[6] = 0x10;
+                        pim_data[8] = 0x10;
+                        pim_data[12] = 0x50;
 
                         byte red;
                         byte green;
@@ -455,10 +455,10 @@ namespace ImagetoPIM
                             // normalize alpha
                             alpha = (byte)((palette[i].A + 1) / 2);
 
-                            pimdata[(i * 4) + HEADER_LENGTH] = red;
-                            pimdata[(i * 4 + 1) + HEADER_LENGTH] = green;
-                            pimdata[(i * 4 + 2) + HEADER_LENGTH] = blue;
-                            pimdata[(i * 4 + 3) + HEADER_LENGTH] = alpha;
+                            pim_data[(i * 4) + HEADER_LENGTH] = red;
+                            pim_data[(i * 4 + 1) + HEADER_LENGTH] = green;
+                            pim_data[(i * 4 + 2) + HEADER_LENGTH] = blue;
+                            pim_data[(i * 4 + 3) + HEADER_LENGTH] = alpha;
                         }
 
                         // find the color index of each pixel and write it in
@@ -468,13 +468,13 @@ namespace ImagetoPIM
                         {
                             for (int w = 0; w < image.Width; w++)
                             {
-                                Color pixelcolor = image.GetPixel(w, h);
+                                Color pixel_color = image.GetPixel(w, h);
                                 index = 0;
 
                                 // iterate through the palette and find the color
                                 for (int i = 0; i < palette.Length; i++)
                                 {
-                                    if (pixelcolor == palette[i])
+                                    if (pixel_color == palette[i])
                                     {
                                         index = i;
                                         break;
@@ -486,22 +486,22 @@ namespace ImagetoPIM
                                 // this is cause 4 bit pim files suck and have a wonky order
                                 if (((h * image.Width) + w) % 2 == 0)
                                 {
-                                    pimdata[PALETTE_LENGTH + HEADER_LENGTH + byte_count] += (byte)index;
+                                    pim_data[PALETTE_LENGTH + HEADER_LENGTH + byte_count] += (byte)index;
                                 }
                                 else
                                 {
-                                    pimdata[PALETTE_LENGTH + HEADER_LENGTH + byte_count] += (byte)(index * 16);
+                                    pim_data[PALETTE_LENGTH + HEADER_LENGTH + byte_count] += (byte)(index * 16);
                                     byte_count++;
                                 }
                             }
                         }
 
                         // get output file name
-                        string newfilename = filename.Remove(filename.Length - 4) + ".PIM";
+                        string new_filename = filename.Remove(filename.Length - 4) + ".PIM";
 
                         // create new pim file
-                        File.WriteAllBytes(newfilename, pimdata);
-                        if (File.Exists(newfilename))
+                        File.WriteAllBytes(new_filename, pim_data);
+                        if (File.Exists(new_filename))
                         {
                             return true;
                         }
@@ -520,7 +520,7 @@ namespace ImagetoPIM
                         image = MedianCut.Quantize(image, 256);
 
                         // make byte array, with one byte per pixel
-                        byte[] pimdata = new byte[HEADER_LENGTH + PALETTE_LENGTH + image.Width * image.Height];
+                        byte[] pim_data = new byte[HEADER_LENGTH + PALETTE_LENGTH + image.Width * image.Height];
 
                         // get every color in the source image
                         // very slow, especially for this encoding format
@@ -531,13 +531,13 @@ namespace ImagetoPIM
                             for (int w = 0; w < image.Width; w++)
                             {
                                 exists = false;
-                                Color pixelcolor = image.GetPixel(w, h);
+                                Color pixel_color = image.GetPixel(w, h);
 
                                 // if color is already found, move on to the next pixel
                                 // this is why its slow
                                 for (int k = 0; k < palette.Length; k++)
                                 {
-                                    if (pixelcolor == palette[k])
+                                    if (pixel_color == palette[k])
                                     {
                                         exists = true;
                                         break;
@@ -551,7 +551,7 @@ namespace ImagetoPIM
                                 else
                                 {
                                     Array.Resize(ref palette, palette.Length + 1);
-                                    palette[palette.Length - 1] = pixelcolor;
+                                    palette[palette.Length - 1] = pixel_color;
                                     // this is here just in case the quantization doesnt work 100% properly
                                     if (palette.Length >= 256)
                                         break;
@@ -562,17 +562,17 @@ namespace ImagetoPIM
                         }
 
                         // write width and height into header
-                        pimdata[0] = ((byte)(image.Width % 256));
-                        pimdata[1] = ((byte)(image.Width >> 8));
-                        pimdata[2] = ((byte)(image.Height % 256));
-                        pimdata[3] = ((byte)(image.Height >> 8));
+                        pim_data[0] = ((byte)(image.Width % 256));
+                        pim_data[1] = ((byte)(image.Width >> 8));
+                        pim_data[2] = ((byte)(image.Height % 256));
+                        pim_data[3] = ((byte)(image.Height >> 8));
 
                         // write rest of header values
-                        pimdata[4] = 0x08;
-                        pimdata[7] = 0x01;
-                        pimdata[8] = 0x10;
-                        pimdata[12] = 0x10;
-                        pimdata[13] = 0x04;
+                        pim_data[4] = 0x08;
+                        pim_data[7] = 0x01;
+                        pim_data[8] = 0x10;
+                        pim_data[12] = 0x10;
+                        pim_data[13] = 0x04;
 
                         // write color palette data
                         byte red;
@@ -587,10 +587,10 @@ namespace ImagetoPIM
                             // normalize alpha
                             alpha = (byte)((palette[i].A + 1) / 2);
 
-                            pimdata[(i * 4) + HEADER_LENGTH] = red;
-                            pimdata[(i * 4 + 1) + HEADER_LENGTH] = green;
-                            pimdata[(i * 4 + 2) + HEADER_LENGTH] = blue;
-                            pimdata[(i * 4 + 3) + HEADER_LENGTH] = alpha;
+                            pim_data[(i * 4) + HEADER_LENGTH] = red;
+                            pim_data[(i * 4 + 1) + HEADER_LENGTH] = green;
+                            pim_data[(i * 4 + 2) + HEADER_LENGTH] = blue;
+                            pim_data[(i * 4 + 3) + HEADER_LENGTH] = alpha;
                         }
 
                         // find the color for each pixel and write the index
@@ -599,29 +599,29 @@ namespace ImagetoPIM
                         {
                             for (int w = 0; w < image.Width; w++)
                             {
-                                Color pixelcolor = image.GetPixel(w, h);
+                                Color pixel_color = image.GetPixel(w, h);
                                 index = 0;
 
                                 // find the color of the pixel then write it in
                                 for (int i = 0; i < palette.Length; i++)
                                 {
-                                    if (pixelcolor == palette[i])
+                                    if (pixel_color == palette[i])
                                     {
                                         index = i;
                                         break;
                                     }
                                 }
 
-                                pimdata[PALETTE_LENGTH + HEADER_LENGTH + (h * image.Width) + w] = (byte)index;
+                                pim_data[PALETTE_LENGTH + HEADER_LENGTH + (h * image.Width) + w] = (byte)index;
                             }
                         }
 
                         // get output file name
-                        string newfilename = filename.Remove(filename.Length - 4) + ".PIM";
+                        string new_filename = filename.Remove(filename.Length - 4) + ".PIM";
 
                         // create new pim file
-                        File.WriteAllBytes(newfilename, pimdata);
-                        if (File.Exists(newfilename))
+                        File.WriteAllBytes(new_filename, pim_data);
+                        if (File.Exists(new_filename))
                         {
                             return true;
                         }
@@ -636,17 +636,17 @@ namespace ImagetoPIM
                         Bitmap image = new Bitmap(filename);
 
                         // this format has 4 bytes per pixel
-                        byte[] pimdata = new byte[HEADER_LENGTH + (4 * image.Width * image.Height)];
+                        byte[] pim_data = new byte[HEADER_LENGTH + (4 * image.Width * image.Height)];
 
                         // write width and height into header
-                        pimdata[0] = ((byte)(image.Width % 256));
-                        pimdata[1] = ((byte)(image.Width >> 8));
-                        pimdata[2] = ((byte)(image.Height % 256));
-                        pimdata[3] = ((byte)(image.Height >> 8));
+                        pim_data[0] = ((byte)(image.Width % 256));
+                        pim_data[1] = ((byte)(image.Width >> 8));
+                        pim_data[2] = ((byte)(image.Height % 256));
+                        pim_data[3] = ((byte)(image.Height >> 8));
 
                         // write rest of header values
-                        pimdata[4] = 0x20;
-                        pimdata[12] = 0x10;
+                        pim_data[4] = 0x20;
+                        pim_data[12] = 0x10;
 
                         // for each pixel write the color values in directly
                         for (int h = 0; h < image.Height; h++)
@@ -655,20 +655,20 @@ namespace ImagetoPIM
                             {
                                 Color pixel_color = image.GetPixel(w, h);
 
-                                pimdata[HEADER_LENGTH + (4 * ((h * image.Width) + w))] = pixel_color.R;
-                                pimdata[HEADER_LENGTH + (4 * ((h * image.Width) + w)) + 1] = pixel_color.G;
-                                pimdata[HEADER_LENGTH + (4 * ((h * image.Width) + w)) + 2] = pixel_color.B;
+                                pim_data[HEADER_LENGTH + (4 * ((h * image.Width) + w))] = pixel_color.R;
+                                pim_data[HEADER_LENGTH + (4 * ((h * image.Width) + w)) + 1] = pixel_color.G;
+                                pim_data[HEADER_LENGTH + (4 * ((h * image.Width) + w)) + 2] = pixel_color.B;
                                 // normalize alpha
-                                pimdata[HEADER_LENGTH + (4 * ((h * image.Width) + w)) + 3] = (byte)((pixel_color.A + 1) / 2);
+                                pim_data[HEADER_LENGTH + (4 * ((h * image.Width) + w)) + 3] = (byte)((pixel_color.A + 1) / 2);
                             }
                         }
 
                         // get output file name
-                        string newfilename = filename.Remove(filename.Length - 4) + ".PIM";
+                        string new_filename = filename.Remove(filename.Length - 4) + ".PIM";
 
                         // create new pim file
-                        File.WriteAllBytes(newfilename, pimdata);
-                        if (File.Exists(newfilename))
+                        File.WriteAllBytes(new_filename, pim_data);
+                        if (File.Exists(new_filename))
                         {
                             return true;
                         }
