@@ -62,7 +62,7 @@ namespace ImagetoPIM
 
                         // make and quantize image file
                         Bitmap image = new Bitmap(image_file);
-                        image = MedianCut.Quantize(image, 16);
+                        image = Octree.Quantize(image, 16);
 
                         // get byte array
                         // 4 bit pim files aren't really designed for odd value pixel counts
@@ -200,7 +200,7 @@ namespace ImagetoPIM
 
                         // make and quantize image
                         Bitmap image = new Bitmap(image_file);
-                        image = MedianCut.Quantize(image, 256);
+                        image = Octree.Quantize(image, 256);
 
                         // make byte array, with one byte per pixel
                         byte[] pim_data = new byte[HEADER_LENGTH + PALETTE_LENGTH + image.Width * image.Height];
@@ -380,7 +380,7 @@ namespace ImagetoPIM
 
                         // make and quantize image file
                         Bitmap image = new Bitmap(filename);
-                        image = MedianCut.Quantize(image, 16);
+                        image = Octree.Quantize(image, 16);
 
                         // get byte array
                         // 4 bit pim files aren't really designed for odd value pixel counts
@@ -517,7 +517,7 @@ namespace ImagetoPIM
 
                         // make and quantize image
                         Bitmap image = new Bitmap(filename);
-                        image = MedianCut.Quantize(image, 256);
+                        image = Octree.Quantize(image, 256);
 
                         // make byte array, with one byte per pixel
                         byte[] pim_data = new byte[HEADER_LENGTH + PALETTE_LENGTH + image.Width * image.Height];
