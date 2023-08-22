@@ -1,84 +1,86 @@
-﻿using ColourQuantization;
-using System.Drawing;
+﻿using System.Drawing;
+using System.Runtime.CompilerServices;
+using ImageMagick;
+using ImageMagick.Formats;
 
 namespace ImagetoPIM
 {
-	public static class PIMConverter
-	{
-		const int HEADER_LENGTH = 0x10;
+    public static class PIMConverter
+    {
+        const int HEADER_LENGTH = 0x10;
 
-		// validate input before generating the output
-		public static bool GeneratePIM(string input_path, int bit_depth)
-		{
-			if (input_path == null || input_path == string.Empty)
-			{
-				input_path = GetFileNameFromConsole();
-				if (input_path == string.Empty)
-					return false;
-			}
+        // validate input before generating the output
+        public static bool GeneratePIM(string input_path, int bit_depth)
+        {
+            if (input_path == null || input_path == string.Empty)
+            {
+                input_path = GetFileNameFromConsole();
+                if (input_path == string.Empty)
+                    return false;
+            }
 
-			if (bit_depth != 4 && bit_depth != 8 && bit_depth != 32)
-			{
-				bit_depth = GetBitDepthFromConsole();
-				if (bit_depth == 0)
-					return false;
-			}
+            if (bit_depth != 4 && bit_depth != 8 && bit_depth != 32)
+            {
+                bit_depth = GetBitDepthFromConsole();
+                if (bit_depth == 0)
+                    return false;
+            }
 
-			if (!WritePIMFile(input_path, bit_depth))
-			{
-				Console.WriteLine("Could not write PIM file\n");
-				return false;
-			}
-			return true;
-		}
+            if (!ConvertToPIM(input_path, bit_depth))
+            {
+                Console.WriteLine("Could not write PIM file\n");
+                return false;
+            }
+            return true;
+        }
 
-		// get valid file path
-		private static string GetFileNameFromConsole()
-		{
-			// get file to convert
-			Console.Write("Input the path of an image file: ");
-			string image_file = Console.ReadLine();
-			image_file = image_file.Trim('\"');
+        // get valid file path
+        private static string GetFileNameFromConsole()
+        {
+            // get file to convert
+            Console.Write("Input the path of an image file: ");
+            string image_file = Console.ReadLine();
+            image_file = image_file.Trim('\"');
 
-			// check if file exists
-			if (!File.Exists(image_file))
-			{
-				Console.WriteLine("Invalid Filename\n");
-				return string.Empty;
-			}
-			return image_file;
-		}
+            // check if file exists
+            if (!File.Exists(image_file))
+            {
+                Console.WriteLine("Invalid Filename\n");
+                return string.Empty;
+            }
+            return image_file;
+        }
 
-		// get valid bit depth
+        // get valid bit depth
         private static int GetBitDepthFromConsole()
-		{
-			string input;
-			int bit_depth = 0;
-			Console.Write("Enter the bit depth of the PIM file (4, 8, or 32; input 8 when you are unsure): ");
-			input = Console.ReadLine();
+        {
+            string input;
+            int bit_depth = 0;
+            Console.Write("Enter the bit depth of the PIM file (4, 8, or 32; input 8 when you are unsure): ");
+            input = Console.ReadLine();
 
-			// make sure input is valid
-			try
-			{
-				bit_depth = Convert.ToInt32(input);
-			}
-			catch (FormatException)
-			{
-				Console.WriteLine("Invalid bit depth\n");
-				return 0;
-			}
+            // make sure input is valid
+            try
+            {
+                bit_depth = Convert.ToInt32(input);
+            }
+            catch (FormatException)
+            {
+                Console.WriteLine("Invalid bit depth\n");
+                return 0;
+            }
 
-			// can only be 4, 8, or 32
-			if (bit_depth == 4 || bit_depth == 8 || bit_depth == 32)
-				return bit_depth;
-			Console.WriteLine("Invalid bit depth\n");
-			return 0;
-		}
+            // can only be 4, 8, or 32
+            if (bit_depth == 4 || bit_depth == 8 || bit_depth == 32)
+                return bit_depth;
+            Console.WriteLine("Invalid bit depth\n");
+            return 0;
+        }
 
         // generate a pim file from the image path with the specified bit depth
         // note: pim files use RGBA order, rather than ARGB
         // note: pim alpha values end at 0x80, not 0xFF, so they are all normalized before writing
-        private static bool WritePIMFile(string image_file, int bit_depth)
+        public static bool ConvertToPIM(string image_file, int bit_depth)
         {
             switch (bit_depth)
             {
@@ -87,10 +89,17 @@ namespace ImagetoPIM
                         // length of palette in bytes
                         const int PALETTE_LENGTH = 0x40;
 
-                        // make and quantize image file
-                        Bitmap image = new Bitmap(image_file);
-                        image = Octree.Quantize(image, 16);
-                        image = MedianCut.Quantize(image, 16);
+                        // make and quantize image file to get the pallete
+                        Bitmap image = null;
+                        string q_image_path = QuantizeImage(image_file, 16);
+                        if (q_image_path != string.Empty)
+                            image = new Bitmap(q_image_path);
+                        else
+                        {
+                            Console.WriteLine("Could not quantize image\n");
+                            return false;
+                        }
+                        var palette = GetPalette(image);
 
                         // get byte array
                         // 4 bit pim files aren't really designed for odd value pixel counts
@@ -99,20 +108,6 @@ namespace ImagetoPIM
                         // the fraction gets contencated, which is why the extra byte has to be added in odd cases
                         // else, the file would be too short to hold every pixel
                         byte[] pim_data = new byte[HEADER_LENGTH + PALETTE_LENGTH + ((image.Width * image.Height) / 2) + ((image.Width * image.Height) % 2)];
-
-                        // get every color in the source image
-                        var palette = new List<Color>();
-                        for (int h = 0; h < image.Height; h++)
-                        {
-                            for (int w = 0; w < image.Width; w++)
-                            {
-                                if (palette.Contains(image.GetPixel(w, h)))
-                                    continue;
-
-                                palette.Add(image.GetPixel(w, h));
-                            }
-                        }
-                        palette = palette.OrderBy(a => a.R).ThenBy(a => a.G).ThenBy(a => a.B).ThenBy(a => a.A).ToList();
 
                         // write width and height into header
                         pim_data[0] = ((byte)(image.Width % 256));
@@ -126,25 +121,7 @@ namespace ImagetoPIM
                         pim_data[8] = 0x10;
                         pim_data[12] = 0x50;
 
-                        byte red;
-                        byte green;
-                        byte blue;
-                        byte alpha;
-                        // write color palette data
-                        for (int i = 0; i < palette.Count; i++)
-                        {
-
-                            red = palette[i].R;
-                            green = palette[i].G;
-                            blue = palette[i].B;
-                            // normalize alpha
-                            alpha = (byte)((palette[i].A + 1) / 2);
-
-                            pim_data[(i * 4) + HEADER_LENGTH] = red;
-                            pim_data[(i * 4 + 1) + HEADER_LENGTH] = green;
-                            pim_data[(i * 4 + 2) + HEADER_LENGTH] = blue;
-                            pim_data[(i * 4 + 3) + HEADER_LENGTH] = alpha;
-                        }
+                        WritePaletteData(pim_data, palette, HEADER_LENGTH);
 
                         // find the color index of each pixel and write it in
                         int index;
@@ -180,47 +157,29 @@ namespace ImagetoPIM
                                 }
                             }
                         }
-
-                        // get output file name
-                        string new_filename = Path.GetFileNameWithoutExtension(image_file) + ".PIM";
-
-                        // create new pim file
-                        File.WriteAllBytes(new_filename, pim_data);
-                        if (File.Exists(new_filename))
-                        {
-                            return true;
-                        }
-                        else
-                        {
-                            return false;
-                        }
+                        image.Dispose();
+                        File.Delete(q_image_path);
+                        return WritePIMFile(image_file, pim_data);
                     }
                 case 8:
                     {
                         // length of palette in bytes
                         const int PALETTE_LENGTH = 0x400;
 
-                        // make and quantize image
-                        Bitmap image = new Bitmap(image_file);
-                        image = Octree.Quantize(image, 256);
-                        image = MedianCut.Quantize(image, 256);
+                        // make and quantize image file to get the pallete
+                        Bitmap image = null;
+                        string q_image_path = QuantizeImage(image_file, 256);
+                        if (q_image_path != string.Empty)
+                            image = new Bitmap(q_image_path);
+                        else
+                        {
+                            Console.WriteLine("Could not quantize image\n");
+                            return false;
+                        }
+                        var palette = GetPalette(image);
 
                         // make byte array, with one byte per pixel
                         byte[] pim_data = new byte[HEADER_LENGTH + PALETTE_LENGTH + image.Width * image.Height];
-
-                        // get every color in the source image
-                        var palette = new List<Color>();
-                        for (int h = 0; h < image.Height; h++)
-                        {
-                            for (int w = 0; w < image.Width; w++)
-                            {
-                                if (palette.Contains(image.GetPixel(w, h)))
-                                    continue;
-
-                                palette.Add(image.GetPixel(w, h));
-                            }
-                        }
-                        palette = palette.OrderBy(a => a.R).ThenBy(a => a.G).ThenBy(a => a.B).ThenBy(a => a.A).ToList();
 
                         // write width and height into header
                         pim_data[0] = ((byte)(image.Width % 256));
@@ -235,24 +194,7 @@ namespace ImagetoPIM
                         pim_data[12] = 0x10;
                         pim_data[13] = 0x04;
 
-                        // write color palette data
-                        byte red;
-                        byte green;
-                        byte blue;
-                        byte alpha;
-                        for (int i = 0; i < palette.Count; i++)
-                        {
-                            red = palette[i].R;
-                            green = palette[i].G;
-                            blue = palette[i].B;
-                            // normalize alpha
-                            alpha = (byte)((palette[i].A + 1) / 2);
-
-                            pim_data[(i * 4) + HEADER_LENGTH] = red;
-                            pim_data[(i * 4 + 1) + HEADER_LENGTH] = green;
-                            pim_data[(i * 4 + 2) + HEADER_LENGTH] = blue;
-                            pim_data[(i * 4 + 3) + HEADER_LENGTH] = alpha;
-                        }
+                        WritePaletteData(pim_data, palette, HEADER_LENGTH);
 
                         // find the color for each pixel and write the index
                         int index;
@@ -276,20 +218,9 @@ namespace ImagetoPIM
                                 pim_data[PALETTE_LENGTH + HEADER_LENGTH + (h * image.Width) + w] = (byte)index;
                             }
                         }
-
-                        // get output file name
-                        string new_filename = Path.GetFileNameWithoutExtension(image_file) + ".PIM";
-
-                        // create new pim file
-                        File.WriteAllBytes(new_filename, pim_data);
-                        if (File.Exists(new_filename))
-                        {
-                            return true;
-                        }
-                        else
-                        {
-                            return false;
-                        }
+                        image.Dispose();
+                        File.Delete(q_image_path);
+                        return WritePIMFile(image_file, pim_data);
                     }
                 case 32:
                     {
@@ -323,24 +254,67 @@ namespace ImagetoPIM
                                 pim_data[HEADER_LENGTH + (4 * ((h * image.Width) + w)) + 3] = (byte)((pixel_color.A + 1) / 2);
                             }
                         }
-
-                        // get output file name
-                        string new_filename = Path.GetFileNameWithoutExtension(image_file) + ".PIM";
-
-                        // create new pim file
-                        File.WriteAllBytes(new_filename, pim_data);
-                        if (File.Exists(new_filename))
-                        {
-                            return true;
-                        }
-                        else
-                        {
-                            return false;
-                        }
+                        image.Dispose();
+                        return WritePIMFile(image_file, pim_data);
                     }
                 default:
                     return false;
             }
+        }
+
+        // use imagemagick to quantize the colors for the given bit depth's color limit (16 for 4 bit; 256 for 8 bit; 32 bit does not quantize)
+        // note: images with extremly low color variation can significantly less colors than intended at lower bit depths
+        // ex: an image that is mostly white with a transparent background can be made 100% transparent at a bit depth of 4
+        private static string QuantizeImage(string input_path, int count)
+        {
+            ImageMagick.QuantizeSettings settings = new ImageMagick.QuantizeSettings();
+            settings.ColorSpace = ColorSpace.Lab;
+            settings.DitherMethod = DitherMethod.No;
+            settings.Colors = count;
+
+            string output_path = "q_" + Path.GetFileNameWithoutExtension(input_path) + ".png";
+            var m_image = new ImageMagick.MagickImage(input_path);
+            if (m_image.TotalColors > count)
+                m_image.Quantize(settings);
+            m_image.Write(output_path, MagickFormat.Png);
+            if (File.Exists(output_path))
+                return output_path;
+            return string.Empty;
+        }
+
+        private static List<Color> GetPalette(Bitmap image)
+        {
+            var palette = new List<Color>();
+            for (int h = 0; h < image.Height; h++)
+            {
+                for (int w = 0; w < image.Width; w++)
+                {
+                    if (palette.Contains(image.GetPixel(w, h)))
+                        continue;
+                    palette.Add(image.GetPixel(w, h));
+                }
+            }
+            return palette.OrderBy(a => a.R).ThenBy(a => a.G).ThenBy(a => a.B).ThenBy(a => a.A).ToList();
+        }
+
+        private static void WritePaletteData(byte[] pim_data, List<Color> palette, int offset)
+        {
+            for (int i = 0; i < palette.Count; i++)
+            {
+                pim_data[(i * 4) + HEADER_LENGTH] = palette[i].R;
+                pim_data[(i * 4 + 1) + HEADER_LENGTH] = palette[i].G;
+                pim_data[(i * 4 + 2) + HEADER_LENGTH] = palette[i].B;
+                pim_data[(i * 4 + 3) + HEADER_LENGTH] = (byte)((palette[i].A + 1) / 2);
+            }
+        }
+
+        private static bool WritePIMFile(string input_path, byte[] pim_data)
+        {
+            string output_path = Path.GetFileNameWithoutExtension(input_path) + ".PIM";
+            File.WriteAllBytes(output_path, pim_data);
+            if (File.Exists(output_path))
+                return true;
+            return false;
         }
     }
 }

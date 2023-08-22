@@ -1,0 +1,8 @@
+{
+  "profiles": {
+    "ImagetoPIM": {
+      "commandName": "Project",
+      "commandLineArgs": "title_logo.png"
+    }
+  }
+}
